@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Contracts\OccupationParser;
+use App\Contracts\OccupationComparator;
 use Illuminate\Foundation\Bus\DispatchesJobs;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
@@ -14,10 +15,12 @@ class OccupationsController extends BaseController
     use AuthorizesRequests, DispatchesJobs, ValidatesRequests;
 
     private $occparser;
+    private $occcomparator;
 
-    public function __construct(OccupationParser $parser)
+    public function __construct(OccupationParser $parser, OccupationComparator $comparator)
     {
         $this->occparser = $parser;
+        $this->occcomparator = $comparator;
     }
 
     public function index()
@@ -42,131 +45,47 @@ class OccupationsController extends BaseController
             $occupation_2_skills = $this->occparser->get($request->get('occupation_2'));
 
             if(count($occupation_1_skills) && count($occupation_2_skills)){
-                $return_scopes[] = 'skills';
-                $occupation_1_skill_keys = array_keys($occupation_1_skills);
-                $occupation_2_skill_keys = array_keys($occupation_2_skills);
-                $skill_keys = array_unique(array_merge($occupation_1_skill_keys, $occupation_2_skill_keys));
-
-                $total_skill_score = 0;
-                foreach($skill_keys as $skill_key){
-                    if(isset($occupation_1_skills[$skill_key]) && isset($occupation_2_skills[$skill_key])){
-                        // Skill is shared by both occupations so calculate a score from 0-100 based on the difference of it's importance
-                        $skill_score = 100 - abs($occupation_1_skills[$skill_key]['value'] - $occupation_2_skills[$skill_key]['value']);
-                        $total_skill_score += $skill_score;
-                        $skills[] = [
-                            'label' => $occupation_1_skills[$skill_key]['label'],
-                            'values' => [
-                                $occupation_1_skills[$skill_key]['value'],
-                                $occupation_2_skills[$skill_key]['value'],
-                            ],
-                            'score' => $skill_score,
-                            'description' => $occupation_1_skills[$skill_key]['description']
-                        ];
-                    }else{
-                        // Skill only applicable to one occupation so assign a score of 0
-                        $skills[] = [
-                            'label' => isset($occupation_1_skills[$skill_key]['label']) ? $occupation_1_skills[$skill_key]['label'] : $occupation_2_skills[$skill_key]['label'],
-                            'values' => [
-                                isset($occupation_1_skills[$skill_key]['value']) ? $occupation_1_skills[$skill_key]['value'] : 0,
-                                isset($occupation_2_skills[$skill_key]['value']) ? $occupation_2_skills[$skill_key]['value'] : 0,
-                            ],
-                            'score' => 0,
-                            'description' => isset($occupation_1_skills[$skill_key]['description']) ? $occupation_1_skills[$skill_key]['label'] : $occupation_2_skills[$skill_key]['description'],
-                        ];
-                    }
+                
+                $result = $this->occcomparator->compare('skills', $occupation_1_skills, $occupation_2_skills);
+                if($result){
+                    $return_scopes[] = 'skills';
+                    $skills = $result['list'];
+                    $skills_similarity = $result['similarity'];
                 }
-
-                $skills_similarity = round($total_skill_score / count($skill_keys));
             }
         }
 
         if(in_array('knowledge', $request->get('scopes'))){
 
             $this->occparser->setScope('knowledge');
-            $occupation_1_skills = $this->occparser->get($request->get('occupation_1'));
-            $occupation_2_skills = $this->occparser->get($request->get('occupation_2'));
+            $occupation_1_knowledge = $this->occparser->get($request->get('occupation_1'));
+            $occupation_2_knowledge = $this->occparser->get($request->get('occupation_2'));
 
-            if(count($occupation_1_skills) && count($occupation_2_skills)){
-                $return_scopes[] = 'knowledge';
-                $occupation_1_skill_keys = array_keys($occupation_1_skills);
-                $occupation_2_skill_keys = array_keys($occupation_2_skills);
-                $skill_keys = array_unique(array_merge($occupation_1_skill_keys, $occupation_2_skill_keys));
+            if(count($occupation_1_knowledge) && count($occupation_2_knowledge)){
 
-                $total_skill_score = 0;
-                foreach($skill_keys as $skill_key){
-                    if(isset($occupation_1_skills[$skill_key]) && isset($occupation_2_skills[$skill_key])){
-                        // Skill is shared by both occupations so calculate a score from 0-100 based on the difference of it's importance
-                        $skill_score = 100 - abs($occupation_1_skills[$skill_key]['value'] - $occupation_2_skills[$skill_key]['value']);
-                        $total_skill_score += $skill_score;
-                        $knowledge[] = [
-                            'label' => $occupation_1_skills[$skill_key]['label'],
-                            'values' => [
-                                $occupation_1_skills[$skill_key]['value'],
-                                $occupation_2_skills[$skill_key]['value'],
-                            ],
-                            'score' => $skill_score,
-                            'description' => $occupation_1_skills[$skill_key]['description']
-                        ];
-                    }else{
-                        // Skill only applicable to one occupation so assign a score of 0
-                        $knowledge[] = [
-                            'label' => isset($occupation_1_skills[$skill_key]['label']) ? $occupation_1_skills[$skill_key]['label'] : $occupation_2_skills[$skill_key]['label'],
-                            'values' => [
-                                isset($occupation_1_skills[$skill_key]['value']) ? $occupation_1_skills[$skill_key]['value'] : 0,
-                                isset($occupation_2_skills[$skill_key]['value']) ? $occupation_2_skills[$skill_key]['value'] : 0,
-                            ],
-                            'score' => 0,
-                            'description' => isset($occupation_1_skills[$skill_key]['description']) ? $occupation_1_skills[$skill_key]['label'] : $occupation_2_skills[$skill_key]['description'],
-                        ];
-                    }
+                $result = $this->occcomparator->compare('knowledge', $occupation_1_knowledge, $occupation_2_knowledge);
+                if($result){
+                    $return_scopes[] = 'knowledge';
+                    $knowledge = $result['list'];
+                    $knowledge_similarity = $result['similarity'];
                 }
-
-                $knowledge_similarity = round($total_skill_score / count($skill_keys));
             }
         }
 
         if(in_array('abilities', $request->get('scopes'))){
 
             $this->occparser->setScope('abilities');
-            $occupation_1_skills = $this->occparser->get($request->get('occupation_1'));
-            $occupation_2_skills = $this->occparser->get($request->get('occupation_2'));
+            $occupation_1_abilities = $this->occparser->get($request->get('occupation_1'));
+            $occupation_2_abilities = $this->occparser->get($request->get('occupation_2'));
 
-            if(count($occupation_1_skills) && count($occupation_2_skills)){
-                $return_scopes[] = 'abilities';
-                $occupation_1_skill_keys = array_keys($occupation_1_skills);
-                $occupation_2_skill_keys = array_keys($occupation_2_skills);
-                $skill_keys = array_unique(array_merge($occupation_1_skill_keys, $occupation_2_skill_keys));
+            if(count($occupation_1_abilities) && count($occupation_2_abilities)){
 
-                $total_skill_score = 0;
-                foreach($skill_keys as $skill_key){
-                    if(isset($occupation_1_skills[$skill_key]) && isset($occupation_2_skills[$skill_key])){
-                        // Skill is shared by both occupations so calculate a score from 0-100 based on the difference of it's importance
-                        $skill_score = 100 - abs($occupation_1_skills[$skill_key]['value'] - $occupation_2_skills[$skill_key]['value']);
-                        $total_skill_score += $skill_score;
-                        $abilities[] = [
-                            'label' => $occupation_1_skills[$skill_key]['label'],
-                            'values' => [
-                                $occupation_1_skills[$skill_key]['value'],
-                                $occupation_2_skills[$skill_key]['value'],
-                            ],
-                            'score' => $skill_score,
-                            'description' => $occupation_1_skills[$skill_key]['description']
-                        ];
-                    }else{
-                        // Skill only applicable to one occupation so assign a score of 0
-                        $abilities[] = [
-                            'label' => isset($occupation_1_skills[$skill_key]['label']) ? $occupation_1_skills[$skill_key]['label'] : $occupation_2_skills[$skill_key]['label'],
-                            'values' => [
-                                isset($occupation_1_skills[$skill_key]['value']) ? $occupation_1_skills[$skill_key]['value'] : 0,
-                                isset($occupation_2_skills[$skill_key]['value']) ? $occupation_2_skills[$skill_key]['value'] : 0,
-                            ],
-                            'score' => 0,
-                            'description' => isset($occupation_1_skills[$skill_key]['description']) ? $occupation_1_skills[$skill_key]['label'] : $occupation_2_skills[$skill_key]['description'],
-                        ];
-                    }
+                $result = $this->occcomparator->compare('abilities', $occupation_1_abilities, $occupation_2_abilities);
+                if($result){
+                    $return_scopes[] = 'abilities';
+                    $abilities = $result['list'];
+                    $abilities_similarity = $result['similarity'];
                 }
-
-                $abilities_similarity = round($total_skill_score / count($skill_keys));
             }
         }
 
